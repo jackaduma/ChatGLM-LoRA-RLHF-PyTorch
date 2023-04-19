@@ -10,6 +10,7 @@
     - [**Data Process**](#data-process)
     - [**Supervised Finetune**](#supervised-finetune)
     - [**Merge PEFT adapter into Model**](#merge-peft-adapter-into-model)
+    - [**Reward Modeling**](#reward-modeling)
   - [**Topics**](#topics)
   - [**Reference**](#reference)
 ---
@@ -65,6 +66,12 @@ python supervised_finetune.py --dataset_path data/alpaca --lora_rank 8 --per_dev
 pip uninstall peft -y
 pip install peft==0.2.0  # 0.3.0.dev0 raise many errors
 python merge_peft_adapter.py
+```
+
+### **Reward Modeling**
+
+```bash
+python train_reward_model.py --model_name 'THUDM/chatglm-6b' --gradient_accumulation_steps 32 --per_device_train_batch_size 1 --train_subset 100 --eval_subset 10 --local_rank 0 --bf16 False
 ```
 
 ---
