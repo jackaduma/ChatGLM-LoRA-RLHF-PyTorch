@@ -11,7 +11,7 @@
     - [**Supervised Finetune**](#supervised-finetune)
     - [**Merge PEFT adapter into Model**](#merge-peft-adapter-into-model)
     - [**Reward Modeling**](#reward-modeling)
-  - [**Topics**](#topics)
+  - [**Notes**](#notes)
   - [**Reference**](#reference)
 ---
 
@@ -76,7 +76,7 @@ python train_reward_model.py --model_name 'THUDM/chatglm-6b' --gradient_accumula
 
 ---
 
-## **Topics**
+## **Notes**
 1. PEFT的版本，目前从git上安装的是 0.3.0.dev0 版本，在merge_peft_adapter的时候有问题，需要切换到peft==0.2.0 (0.3.0.dev0 没有 _get_submodules()这个函数)
 2. 因为huggingface的transformer暂时不支持ChatGLM的封装接口，需要自己从ChatGLM的hub上下载代码放到本地目录 models 下面，供后续使用
 3. 同样，ChatGLM的model代码是自己的，和huggingface没合并，所以在调用加载的时候，都主要加上参数 trust_remote_code=True
