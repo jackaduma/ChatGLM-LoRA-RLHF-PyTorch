@@ -1,4 +1,5 @@
 # **ChatGLM-LoRA-RLHF-PyTorch**
+a full pipeline to finetune ChatGLM LLM with LoRA and RLHF on consumer hardware
 
 ---
 ## **Table of Contents**
