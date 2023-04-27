@@ -10,8 +10,9 @@ a full pipeline to finetune ChatGLM LLM with LoRA and RLHF on consumer hardware
   - [**Run**](#run)
     - [**Data Process**](#data-process)
     - [**Supervised Finetune**](#supervised-finetune)
-    - [**Merge PEFT adapter into Model**](#merge-peft-adapter-into-model)
+      - [**Merge PEFT adapter into Model**](#merge-peft-adapter-into-model)
     - [**Reward Modeling**](#reward-modeling)
+      - [**merge reward model into Model**](#merge-reward-model-into-model)
   - [**Notes**](#notes)
   - [**Reference**](#reference)
 ---
@@ -29,7 +30,7 @@ cuda==11.8
 - [x] SFT: Supervised Finetune
 - [x] Merge Adapter into Model
 - [ ] RLHF
-  - [ ] train reward model
+  - [x] train reward model
   - [ ] tuning with RL
 
 ## **Run**
@@ -61,18 +62,24 @@ pip install git+https://github.com/huggingface/peft.git  # 最新版本 >=0.3.0.
 python supervised_finetune.py --dataset_path data/alpaca --lora_rank 8 --per_device_train_batch_size 1 --gradient_accumulation_steps 32 --save_steps 200 --save_total_limit 3  --learning_rate 1e-4 --fp16 --remove_unused_columns false --logging_steps 10 --output_dir output
 ```
 
-### **Merge PEFT adapter into Model**
+#### **Merge PEFT adapter into Model**
 
 ```bash
 pip uninstall peft -y
 pip install peft==0.2.0  # 0.3.0.dev0 raise many errors
-python merge_peft_adapter.py
+python merge_peft_adapter.py --model_name ./output 
 ```
 
 ### **Reward Modeling**
 
 ```bash
 python train_reward_model.py --model_name 'THUDM/chatglm-6b' --gradient_accumulation_steps 32 --per_device_train_batch_size 1 --train_subset 100 --eval_subset 10 --local_rank 0 --bf16 False
+```
+
+#### **merge reward model into Model**
+
+```bash
+python merge_peft_adapter.py --model_name ./reward_model_chatglm-6b
 ```
 
 ---
