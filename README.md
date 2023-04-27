@@ -81,7 +81,8 @@ python train_reward_model.py --model_name 'THUDM/chatglm-6b' --gradient_accumula
 1. PEFT的版本，目前从git上安装的是 0.3.0.dev0 版本，在merge_peft_adapter的时候有问题，需要切换到peft==0.2.0 (0.3.0.dev0 没有 _get_submodules()这个函数)
 2. 因为huggingface的transformer暂时不支持ChatGLM的封装接口，需要自己从ChatGLM的hub上下载代码放到本地目录 models 下面，供后续使用
 3. 同样，ChatGLM的model代码是自己的，和huggingface没合并，所以在调用加载的时候，都主要加上参数 trust_remote_code=True
-4. 训练 Reward Model 需要执行 SeqCLS 这个Task： huggingface 的 transformer 提供 "AutoModelForSequenceClassification" 这个类。但是 ChatGLM 只有 "ChatGLMForConditionalGeneration" 这个类。所以暂时没法训练 Reward model，等ChatGLM自己放出代码，或者huggingface 集成 ChatGLM吧
+4. 训练 Reward Model 需要执行 SeqCLS 这个Task： huggingface 的 transformer 提供 "AutoModelForSequenceClassification" 这个类。但是 ChatGLM 只有 "ChatGLMForConditionalGeneration" 这个类。
+5. 自己实现 Reward model, [reward_model.py](reward_model.py)，完成奖励模型的训练过程
 
 ## **Reference**
 data preprocess: [cover_alpaca2jsonl.py](./cover_alpaca2jsonl.py) 和 [tokenize_dataset_rows.py](./tokenize_dataset_rows.py) 来自项目 [ChatGLM-Tuning](https://github.com/mymusise/ChatGLM-Tuning)

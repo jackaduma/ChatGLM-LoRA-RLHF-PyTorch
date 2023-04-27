@@ -23,7 +23,9 @@ from transformers import (
 )
 from transformers.utils import PaddingStrategy
 from transformers import LlamaForSequenceClassification, LlamaConfig, LlamaTokenizer
-from models.modeling_chatglm import ChatGLMForConditionalGeneration, ChatGLMConfig
+from transformers import AutoModelForSeq2SeqLM
+
+from reward_model import RewardModel
 
 DEFAULT_PAD_TOKEN = "[PAD]"
 DEFAULT_EOS_TOKEN = "</s>"
@@ -113,8 +115,11 @@ model_name_split = script_args.model_name.split("/")[-1]
 # output_name = (
 #     f"{model_name_split}_peft_gpt-4-llm_rm_{script_args.train_subset}_{script_args.learning_rate}"
 # )
+# output_name = (
+#     f"{model_name_split}_peft_comparision_data-paired_rmts__{script_args.train_subset}_{script_args.learning_rate}"
+# )
 output_name = (
-    f"{model_name_split}_peft_comparision_data-paired_rmts__{script_args.train_subset}_{script_args.learning_rate}"
+    f"reward_model_{model_name_split}__{script_args.train_subset}_{script_args.learning_rate}"
 )
 
 training_args = TrainingArguments(
@@ -145,21 +150,25 @@ training_args = TrainingArguments(
 
 # Load the value-head model and tokenizer.
 # tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, use_auth_token=True)
-if "llama" in script_args.model_name:
+if "llama" in script_args.model_name or "vicuna" in script_args.model_name or "Vicuna" in script_args.model_name:
     tokenizer = LlamaTokenizer.from_pretrained(script_args.model_name)
     config = LlamaConfig.from_pretrained(script_args.model_name)
+
 elif "chatglm" in script_args.model_name:
     tokenizer = AutoTokenizer.from_pretrained(
         script_args.model_name, trust_remote_code=True)
-    config = ChatGLMConfig.from_pretrained(
+    config = AutoConfig.from_pretrained(
         script_args.model_name, trust_remote_code=True)
+    
 else:
     tokenizer = AutoTokenizer.from_pretrained(
         script_args.model_name, trust_remote_code=True)
     config = AutoConfig.from_pretrained(
         script_args.model_name, trust_remote_code=True)
 
-if "llama" in script_args.model_name:
+print("tokenizer: ", type(tokenizer)) 
+
+if "llama" in script_args.model_name or "vicuna" in script_args.model_name or "Vicuna" in script_args.model_name:
     # required for llama
     tokenizer.add_special_tokens(
         {
@@ -183,7 +192,7 @@ print("device_map: ", device_map)
 #    script_args.model_name, num_labels=1, torch_dtype=torch.bfloat16
 # )
 
-if "llama" in script_args.model_name:
+if "llama" in script_args.model_name or "vicuna" in script_args.model_name or "Vicuna" in script_args.model_name:
     model = LlamaForSequenceClassification.from_pretrained(
         script_args.model_name,
         num_labels=1,
@@ -193,7 +202,7 @@ if "llama" in script_args.model_name:
         device_map=device_map,
     )
 elif "chatglm" in script_args.model_name:
-    model = ChatGLMForConditionalGeneration.from_pretrained(
+    model = AutoModelForSeq2SeqLM.from_pretrained(
         script_args.model_name,
         num_labels=1,
         # torch_dtype=torch.bfloat16,
@@ -213,7 +222,11 @@ else:
         device_map=device_map,
     )
 
+print("model: ", type(model))
+
 model = prepare_model_for_int8_training(model)
+
+print("model: ", type(model))
 
 peft_config = LoraConfig(
     task_type=TaskType.SEQ_CLS,
@@ -235,6 +248,23 @@ model.config.use_cache = not script_args.gradient_checkpointing
 num_proc = 24  # Can adjust to be higher if you have more processors.
 original_columns = train_dataset.column_names
 
+reward_model = RewardModel(model.config, model.transformer, tokenizer)
+print(reward_model)
+layers = reward_model.transformer.layers
+# Freeze the first 70% of the hidden layers of the reward model backbone
+# parser.add_argument("--freeze_ratio", type=float, default=0.0, help="ratio of layers frozen for reward training")
+num_layers = len(layers)
+num_frozen = int(0.7 * num_layers)
+for layer in layers[:num_frozen]:
+    layer.requires_grad_(False)
+
+# if args.checkpoint is not None:
+#     checkpoints = glob.glob(args.checkpoint.replace("star", "*"))
+#     st = dict()
+#     for checkpoint in checkpoints:
+#         st.update(torch.load(checkpoint, map_location="cpu"))
+#     res = reward_model.load_state_dict(st, strict=False)
+print(f"Finished loading model and tokenizer")
 
 # Turn the dataset into pairs of post + summaries, where text_j is the preferred question + answer and text_k is the other.
 # Then tokenize the dataset.
@@ -341,10 +371,18 @@ def compute_metrics(eval_pred):
 class RewardTrainer(Trainer):
     # Define how to compute the reward loss. We use the InstructGPT pairwise logloss: https://arxiv.org/abs/2203.02155
     def compute_loss(self, model, inputs, return_outputs=False):
+        # print('inputs["input_ids_j"]: ', inputs["input_ids_j"].shape)
+        # print('inputs["attention_mask_j"]: ', inputs["attention_mask_j"].shape)
         rewards_j = model(
-            input_ids=inputs["input_ids_j"], attention_mask=inputs["attention_mask_j"])[0]
+            chosen_input_ids=inputs["input_ids_j"], chosen_attention_mask=inputs["attention_mask_j"])["chosen_reward"]
+        # print("rewards_j: ", type(rewards_j), rewards_j.shape)
+
+        # print('inputs["input_ids_k"]: ', inputs["input_ids_k"].shape)
+        # print('inputs["attention_mask_k"]: ', inputs["attention_mask_k"].shape)
         rewards_k = model(
-            input_ids=inputs["input_ids_k"], attention_mask=inputs["attention_mask_k"])[0]
+            rejected_input_ids=inputs["input_ids_k"], rejected_attention_mask=inputs["attention_mask_k"])["reject_reward"]
+        # print("rewards_k: ", type(rewards_k), rewards_k.shape)
+        
         loss = -nn.functional.logsigmoid(rewards_j - rewards_k).mean()
         if return_outputs:
             return loss, {"rewards_j": rewards_j, "rewards_k": rewards_k}
@@ -353,7 +391,8 @@ class RewardTrainer(Trainer):
 
 # Train the model, woohoo.
 trainer = RewardTrainer(
-    model=model,
+    # model=model,
+    model=reward_model,
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
@@ -367,4 +406,5 @@ model.config.use_cache = False
 trainer.train(script_args.resume_from_checkpoint)
 
 print("Saving last checkpoint of the model")
-model.save_pretrained(script_args.output_dir + "peft_last_checkpoint")
+# model.save_pretrained(script_args.output_dir + "peft_last_checkpoint")
+model.save_pretrained(output_name)
