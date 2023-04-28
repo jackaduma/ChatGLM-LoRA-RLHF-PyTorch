@@ -109,7 +109,7 @@ requirements 主要是按照 [alpaca-lora](https://github.com/tloen/alpaca-lora)
 ------
 ## **Star-History**
 
-![star-history](https://api.star-history.com/svg?repos=jackaduma/CycleGAN-VC2&type=Date "star-history")
+![star-history](https://api.star-history.com/svg?repos=jackaduma/ChatGLM-LoRA-RLHF-PyTorch&type=Date "star-history")
 
 ------
 
